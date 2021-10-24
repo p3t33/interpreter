@@ -4,8 +4,6 @@ import (
 	"github.com/p3t33/interpreter/token"
 )
 
-const START_OF_INPUT int = 0
-
 type Lexer struct {
 	input                string
 	input_length         int
@@ -13,6 +11,7 @@ type Lexer struct {
 	read_position        int
 	single_raw_charecter byte // current char under examination
 	tokens               map[string]token.Token
+	single_token         token.Token
 }
 
 func CreateNewLexer(input string) *Lexer {
@@ -42,53 +41,124 @@ func CreateNewLexer(input string) *Lexer {
 }
 
 func (l *Lexer) NextToken() token.Token {
-	var tok token.Token
 
+	l.resetTokenValue()
 	l.skipWhitespace()
 
-	if tok, ok := l.tokens[string(l.single_raw_charecter)]; ok {
-		if "=" == tok.Literal {
-			if "=" == string(l.peekNextByteFromInput()) {
-				tok = l.tokens["=="]
+	if l.isSpecialCharecterExistInTokenMap() {
+		if l.isEqualsign() {
+			if l.isNextByteAnEqualsign() {
+				l.createEqualToOperatorToken()
 				l.readSingleByteFromInput()
 			}
 		}
-
-		if "!" == tok.Literal {
-			if "=" == string(l.peekNextByteFromInput()) {
-				tok = l.tokens["!="]
+		if l.isExclamationMark() {
+			if l.isNextByteAnEqualsign() {
+				l.createNotEqualToOperatorToken()
 				l.readSingleByteFromInput()
 			}
 		}
 
 		l.readSingleByteFromInput()
-		return tok
+		return l.single_token
 	}
 
 	if true == l.isEmptyValue() {
-		tok.Literal = ""
-		tok.Type = token.EOF
+		l.createEndOfFileToken()
 		l.readSingleByteFromInput()
-		return tok
+		return l.single_token
 	}
 
 	if true == l.isLetter() {
-		tok.Literal = l.readIdentifier()
-		tok.Type = token.LookupIdent(tok.Literal)
-		return tok
+		l.createIdentToken()
+		return l.single_token
 	} else if l.isDigit() {
-		tok.Type = token.INT
-		tok.Literal = l.readNumber()
-		return tok
+		l.createNumberToken()
+		return l.single_token
 
 	} else {
-		tok.Literal = string(l.single_raw_charecter)
-		tok.Type = token.ILLEGAL
+		l.createillegalToken()
 	}
 
 	l.readSingleByteFromInput()
-	return tok
+	return l.single_token
 
+}
+
+func (l *Lexer) createEqualToOperatorToken() {
+	l.single_token = l.tokens["=="]
+}
+
+func (l *Lexer) createNotEqualToOperatorToken() {
+	l.single_token = l.tokens["!="]
+}
+
+func (l *Lexer) isNextByteAnExclamationMark() bool {
+	if "!" == string(l.peekNextByteFromInput()) {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (l *Lexer) isNextByteAnEqualsign() bool {
+	if "=" == string(l.peekNextByteFromInput()) {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (l *Lexer) isEqualsign() bool {
+	if "=" == l.single_token.Literal {
+		return true
+
+	} else {
+		return false
+	}
+}
+
+func (l *Lexer) isExclamationMark() bool {
+	if "!" == l.single_token.Literal {
+		return true
+
+	} else {
+		return false
+	}
+}
+
+func (l *Lexer) createillegalToken() {
+	l.single_token.Literal = string(l.single_raw_charecter)
+	l.single_token.Type = token.ILLEGAL
+}
+
+func (l *Lexer) createIdentToken() {
+	l.single_token.Literal = l.readIdentifier()
+	l.single_token.Type = token.LookupIdent(l.single_token.Literal)
+}
+
+func (l *Lexer) createEndOfFileToken() {
+	l.single_token.Literal = ""
+	l.single_token.Type = token.EOF
+}
+
+func (l *Lexer) isSpecialCharecterExistInTokenMap() bool {
+	var ok bool
+	if l.single_token, ok = l.tokens[string(l.single_raw_charecter)]; ok {
+		return true
+	} else {
+		return false
+	}
+
+}
+
+func (l *Lexer) resetTokenValue() {
+	l.single_token = token.Token{}
+}
+
+func (l *Lexer) createNumberToken() {
+	l.single_token.Type = token.INT
+	l.single_token.Literal = l.readNumber()
 }
 
 func (l *Lexer) readSingleByteFromInput() {
@@ -150,6 +220,11 @@ func (l *Lexer) readNumber() string {
 
 	return l.input[start_position:l.position]
 }
+
 func (l *Lexer) isDigit() bool {
-	return '0' <= l.single_raw_charecter && l.single_raw_charecter <= '9'
+	if '0' <= l.single_raw_charecter && l.single_raw_charecter <= '9' {
+		return true
+	} else {
+		return false
+	}
 }
