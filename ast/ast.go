@@ -46,6 +46,23 @@ func (i *Identifier) TokenLiteral() string {
 	return i.Token.Literal
 }
 
+/*
+ * return statement
+ * ----------------
+ * return 1;
+ * return add(23);
+ * return <expression>
+ */
+type ReturnStatement struct {
+	Token       token.Token
+	ReturnValue Expression
+}
+
+func (rs *ReturnStatement) statementNode() {}
+func (rs *ReturnStatement) TokenLiteral() string {
+	return rs.Token.Literal
+}
+
 type Node interface {
 	TokenLiteral() string
 }

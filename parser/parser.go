@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"fmt"
+
 	"github.com/p3t33/interpreter/ast"
 	"github.com/p3t33/interpreter/lexer"
 	"github.com/p3t33/interpreter/token"
@@ -11,39 +13,75 @@ type Parser struct {
 
 	curToken  token.Token
 	peekToken token.Token
+
+	errors             []string
+	program_statements ast.Program
+	single_statement   ast.Statement
 }
 
 func (p *Parser) NextToken() {
 	p.curToken = p.peekToken
 	p.peekToken = p.l.NextToken()
+
 }
 
 func New(l *lexer.Lexer) *Parser {
-	p := &Parser{l: l}
+	p := &Parser{
+		l:      l,
+		errors: []string{}}
+
 	// Read two tokens, so curToken and peekToken are both set
-	p.NextToken()
-	p.NextToken()
+	p.initialize_current_and_peek_tokens()
+
+	program_statements := ast.Program{}
+	program_statements.Statements = []ast.Statement{}
 
 	return p
 }
 
+func (p *Parser) initialize_current_and_peek_tokens() {
+	p.NextToken()
+	p.NextToken()
+}
+
+func (p *Parser) Errors() []string {
+	return p.errors
+}
+
+func (p *Parser) peekError(t token.TokenType) {
+	msg := fmt.Sprintf("expected next token to be %s, got %s instead",
+		t, p.peekToken.Type)
+
+	p.errors = append(p.errors, msg)
+}
+
 func (p *Parser) ParseProgram() *ast.Program {
-	program := &ast.Program{}
-	program.Statements = []ast.Statement{}
 
 	for false == p.isEOFToken() {
-		stnt := p.parseStatement()
 
-		if stnt != nil {
-			program.Statements = append(program.Statements, stnt)
+		p.parseStatement()
+
+		if true == p.isValidStatement() {
+			p.appendStatementToAST()
 		}
 
 		p.NextToken()
 	}
 
-	return program
+	return &p.program_statements
 }
 
+func (p *Parser) appendStatementToAST() {
+	p.program_statements.Statements = append(p.program_statements.Statements, p.single_statement)
+}
+
+func (p *Parser) isValidStatement() bool {
+	if p.single_statement != nil {
+		return true
+	} else {
+		return false
+	}
+}
 func (p *Parser) isEOFToken() bool {
 	if token.EOF == p.curToken.Type {
 		return true
@@ -52,14 +90,33 @@ func (p *Parser) isEOFToken() bool {
 	}
 }
 
-func (p *Parser) parseStatement() ast.Statement {
+func (p *Parser) parseStatement() {
 	switch p.curToken.Type {
 	case token.LET:
-		return p.parseLetStatement()
+		p.single_statement = p.parseLetStatement()
+
+	case token.RETURN:
+		p.single_statement = p.parseReturnStatement()
 
 	default:
-		return nil
+		p.single_statement = nil
 	}
+}
+
+func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
+	return_statement := p.createReturnStatement()
+
+	p.NextToken()
+
+	// TODO: We're skipping the expressions until we
+	// encounter a semicolon
+	p.skipExpressionUntilSemicolon()
+
+	return return_statement
+}
+
+func (p *Parser) createReturnStatement() *ast.ReturnStatement {
+	return &ast.ReturnStatement{Token: p.curToken}
 }
 
 func (p *Parser) parseLetStatement() *ast.LetStatement {
@@ -85,6 +142,7 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 
 	return let_statement
 }
+
 func (p *Parser) createLetStatement() *ast.LetStatement {
 	return &ast.LetStatement{Token: p.curToken}
 }
@@ -135,6 +193,7 @@ func (p *Parser) isPeekTokenExpected(t token.TokenType) bool {
 	if p.isPeekToken(t) {
 		return true
 	} else {
+		p.peekError(t)
 		return false
 	}
 }
